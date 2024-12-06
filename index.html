@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Bet Spread Calculator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+        }
+        label {
+            font-weight: bold;
+            margin-top: 10px;
+            display: block;
+        }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            text-align: center;
+            padding: 10px;
+        }
+        th.tc-negative {
+            background-color: #ffcccc; /* Vermelho claro */
+        }
+        th.tc-zero {
+            background-color: #fff2cc; /* Amarelo claro */
+        }
+        th.tc-positive {
+            background-color: #ccffcc; /* Verde claro */
+        }
+        th {
+            background-color: #ddd;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Dynamic Bet Spread Calculator</h1>
+    <label for="bankroll">Bankroll ($):</label>
+    <input type="number" id="bankroll" placeholder="Enter your bankroll">
+    <label for="bankroll">Minimum Bet ($):</label>
+    <input type="number" id="minBet" placeholder="Enter the minimum bet">
+
+    <button onclick="generateTables()">Calculate</button>
+
+    <h2>Bet Spread Table</h2>
+    <table id="betSpreadTable">
+        <thead>
+        <tr>
+            <th>ROR (%)</th>
+            <th>Strategy</th>
+            <th class="tc-negative">-2</th>
+            <th class="tc-negative">-1</th>
+            <th class="tc-zero">0</th>
+            <th class="tc-positive">1</th>
+            <th class="tc-positive">2</th>
+            <th class="tc-positive">3</th>
+            <th class="tc-positive">4</th>
+            <th class="tc-positive">5</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <h2>EV ($/h) Table</h2>
+    <table id="evTable">
+        <thead>
+        <tr>
+            <th>ROR (%)</th>
+            <th>Strategy</th>
+            <th>Solo</th>
+            <th>2 Players</th>
+            <th>3 Players</th>
+            <th>4 Players</th>
+            <th>5 Players</th>
+            <th>6 Players</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<script>
+    const strategies = [
+        { name: "Conservative", baseIncrement: 10 },
+        { name: "Risk Moderate", baseIncrement: 25 },
+        { name: "Agressive", baseIncrement: 35 },
+    ];
+
+    const handsPerHour = [100, 80, 70, 60, 50, 40]; // Mãos por hora para 1 a 6 jogadores
+
+    function calculateBet(minBet, increment, tc) {
+        return tc > 0 ? minBet + increment * tc : minBet;
+    }
+
+    function calculateEV(minBet, increment, players, probabilities, edges) {
+        const hands = handsPerHour[players - 1];
+        return probabilities.reduce((ev, prob, index) => {
+            const bet = calculateBet(minBet, increment, index - 2);
+            return ev + bet * edges[index] * prob * hands;
+        }, 0).toFixed(2);
+    }
+
+    function calculateIncrement(bankroll, rorTarget, maxTC) {
+        // Cálculo dinâmico do incremento com base no bankroll e ROR
+        const targetBet = (rorTarget / 100) * bankroll;
+        return Math.max(5, Math.floor((targetBet - parseFloat(document.getElementById("minBet").value)) / maxTC));
+    }
+
+    function generateTables() {
+        const bankroll = parseFloat(document.getElementById("bankroll").value);
+        if (!bankroll) {
+            alert("Please enter a valid bankroll value!");
+            return;
+        }
+
+        const minBet =parseFloat(document.getElementById("minBet").value);
+        const maxTC = 5; // Máxima contagem positiva considerada
+        const probabilities = [0.35, 0.20, 0.15, 0.10, 0.08, 0.06, 0.04, 0.02];
+        const edges = [-2, -1, 0, 1, 2, 3, 4, 5].map((tc) =>
+            tc > 0 ? tc * 0.01 : 0
+        );
+
+        // Limpar as tabelas antes de gerar novos dados
+        const betSpreadBody = document.getElementById("betSpreadTable").querySelector("tbody");
+        const evTableBody = document.getElementById("evTable").querySelector("tbody");
+        betSpreadBody.innerHTML = ""; // Limpa a tabela Bet Spread
+        evTableBody.innerHTML = "";  // Limpa a tabela EV
+
+        const rorValues = [5, 10, 15]; // ROR levels
+
+        // Gerar tabelas para cada valor de ROR
+        rorValues.forEach((rorTarget, index) => {
+            const strategy = strategies[index % strategies.length]; // Selecionar uma estratégia diferente para cada ROR
+
+            const increment = calculateIncrement(bankroll, rorTarget, maxTC); // Incremento ajustado dinamicamente
+            const bets = [-2, -1, 0, 1, 2, 3, 4, 5].map((tc) =>
+                calculateBet(minBet, increment, tc)
+            );
+
+            // Gerar linha da Bet Spread Table
+            const betRow = `
+            <tr>
+                <td>${rorTarget}%</td>
+                <td>${strategy.name}</td>
+                ${bets.map((bet) => `<td>${bet}</td>`).join("")}
+            </tr>
+        `;
+            betSpreadBody.insertAdjacentHTML("beforeend", betRow);
+
+            // Gerar linha da EV Table
+            const evRow = `
+            <tr>
+                <td>${rorTarget}%</td>
+                <td>${strategy.name}</td>
+                ${handsPerHour
+                .map((_, players) =>
+                    `<td>${calculateEV(minBet, increment, players + 1, probabilities, edges)}</td>`
+                )
+                .join("")}
+            </tr>
+        `;
+            evTableBody.insertAdjacentHTML("beforeend", evRow);
+        });
+    }
+
+
+
+</script>
+
+</body>
+</html>
